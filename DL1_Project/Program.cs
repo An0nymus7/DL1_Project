@@ -1,6 +1,10 @@
-﻿namespace DL1_Project
+﻿using Tensorflow;
+using Tensorflow.NumPy;
+
+
+namespace DL1_Project
 {
-    internal class Program
+    class Program
     {
         static void Main(string[] args)
         {
