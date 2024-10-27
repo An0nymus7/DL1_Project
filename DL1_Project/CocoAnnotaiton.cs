@@ -13,7 +13,11 @@ namespace DL1_Project
             public long id { get; set; }
             public long image_id { get; set; }
             public int category_id { get; set; }
-            public List<float> bbox { get; set; }//x,y,width,height
+
+            /// <summary>
+            /// x,y,width,height
+            /// </summary>
+            public List<float> bbox { get; set; }
         }
 
         public class Category
