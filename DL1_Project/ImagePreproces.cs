@@ -11,6 +11,7 @@ namespace DL1_Project
 {
     class ImagePreproces
     {
+        //PreprocessImage: Resizes and normalizes a single image, and scales its bounding boxes.
         public static (NDArray, float[]) PreprocessImage(string path, List<float> bbox, int targetWidth, int targetHeight)
         {
             //kép betöltés
@@ -42,11 +43,34 @@ namespace DL1_Project
             return (npArray, scaledBbox);
         }
 
+        //OneHotEncode: Converts the COCO category ID into a one-hot encoded vector.
         public static NDArray OneHotEncode(int categoryId, int numClasses)
         {
             NDArray oneHot = np.zeros(numClasses, np.float32);
             oneHot[categoryId] = 1.0f;
             return oneHot;
+        }
+
+        //PreprocessBatch: Preprocesses a batch of images and annotations, returning an array of images, bounding boxes, and labels ready for training.
+        public static (NDArray, NDArray, NDArray) PreprocessBatch(List<CocoAnnotaiton.Image> images, List<CocoAnnotaiton.Annotation> annotations, int targetWidth, int targetHeight, int numClasses)
+        { 
+            var imageArray = np.zeros(new Shape(images.Count,targetWidth,targetHeight,3),np.float32);
+            var bboxArray = np.zeros(new Shape(images.Count,4),np.float32);
+            var labelArray = np.zeros(new Shape(images.Count,numClasses),np.float32);
+
+            for (int i = 0; i < images.Count; i++)
+            {
+                var image = images[i];
+                var annotation = annotations[i];
+
+                (NDArray img, float[] scaledBbox) = PreprocessImage(image.file_name,annotation.bbox,targetWidth,targetHeight);
+
+                imageArray[i] = img;
+                bboxArray[i] = scaledBbox;
+                labelArray[i] = OneHotEncode(annotation.category_id,numClasses);
+            }
+
+            return (imageArray, bboxArray, labelArray);
         }
     }
 }
