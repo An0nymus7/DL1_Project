@@ -6,10 +6,10 @@ namespace DL1_Project
 {
     class Program
     {
-        static CocoAnnotaiton.Root LoadCocoAnnotations(string path)
+        static CocoAnnotation.Root LoadCocoAnnotations(string path)
         { 
             var json = File.ReadAllText(path);
-            return JsonConvert.DeserializeObject<CocoAnnotaiton.Root>(json);
+            return JsonConvert.DeserializeObject<CocoAnnotation.Root>(json);
         }
         static void Main(string[] args)
         {

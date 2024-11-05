@@ -9,7 +9,7 @@ using Tensorflow;
 
 namespace DL1_Project
 {
-    class ImagePreproces
+    class ImagePreprocessor
     {
         //PreprocessImage: Resizes and normalizes a single image, and scales its bounding boxes.
         public static (NDArray, float[]) PreprocessImage(string path, List<float> bbox, int targetWidth, int targetHeight)
@@ -52,7 +52,7 @@ namespace DL1_Project
         }
 
         //PreprocessBatch: Preprocesses a batch of images and annotations, returning an array of images, bounding boxes, and labels ready for training.
-        public static (NDArray, NDArray, NDArray) PreprocessBatch(List<CocoAnnotaiton.Image> images, List<CocoAnnotaiton.Annotation> annotations, int targetWidth, int targetHeight, int numClasses)
+        public static (NDArray, NDArray, NDArray) PreprocessBatch(List<CocoAnnotation.Image> images, List<CocoAnnotation.Annotation> annotations, int targetWidth, int targetHeight, int numClasses)
         { 
             var imageArray = np.zeros(new Shape(images.Count,targetWidth,targetHeight,3),np.float32);
             var bboxArray = np.zeros(new Shape(images.Count,4),np.float32);
