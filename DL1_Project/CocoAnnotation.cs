@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace DL1_Project
 {
-    public class CocoAnnotaiton
+    public class CocoAnnotation
     {
         public class Annotation
         {
