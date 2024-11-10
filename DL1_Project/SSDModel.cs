@@ -73,6 +73,12 @@ namespace DL1_Project
             Debug.WriteLine("\n TRAIN COMPLETED \n");
             Console.WriteLine("\n TRAIN COMPLETED \n");
 
+            //save the model
+            Directory.CreateDirectory("../../../../../Data");
+            model.save("../../../../../Data");
+            Debug.WriteLine("\n SAVE COMPLETED \n");
+            Console.WriteLine("\n SAVE COMPLETED \n");
+
         }
 
         public static void EvaluateModel(Functional model, NDArray valImages, NDArray valBboxes, NDArray valLabels)
