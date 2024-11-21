@@ -12,10 +12,11 @@ namespace DL1_Project
     class ImagePreprocessor
     {
         //PreprocessImage: Resizes and normalizes a single image, and scales its bounding boxes.
-        public static (NDArray, float[]) PreprocessImage(string path, List<float> bbox, int targetWidth, int targetHeight)
+        public static (NDArray, float[]) PreprocessImage(string ImagesPath,string imageName, List<float> bbox, int targetWidth, int targetHeight)
         {
+            string fullPath = Path.Combine(ImagesPath,imageName);
             //kép betöltés
-            Bitmap bitmap = new Bitmap(path);
+            Bitmap bitmap = new Bitmap(fullPath);
             bitmap = new Bitmap(bitmap, new Size(targetWidth, targetHeight));
 
             //NDArray konvertálás
@@ -52,25 +53,64 @@ namespace DL1_Project
         }
 
         //PreprocessBatch: Preprocesses a batch of images and annotations, returning an array of images, bounding boxes, and labels ready for training.
-        public static (NDArray, NDArray, NDArray) PreprocessBatch(List<CocoAnnotation.Image> images, List<CocoAnnotation.Annotation> annotations, int targetWidth, int targetHeight, int numClasses)
-        { 
-            var imageArray = np.zeros(new Shape(images.Count,targetWidth,targetHeight,3),np.float32);
-            var bboxArray = np.zeros(new Shape(images.Count,4),np.float32);
-            var labelArray = np.zeros(new Shape(images.Count,numClasses),np.float32);
+        public static (List<NDArray> , List<NDArray> , List<NDArray> ) PreprocessBatch(string ImagesPath,List<CocoAnnotation.Image> images, List<CocoAnnotation.Annotation> annotations, int targetWidth, int targetHeight, int numClasses, int batchSize)
+        {
+            // Initialize lists to store mini-batches
+            var imageBatches = new List<NDArray>();
+            var bboxBatches = new List<NDArray>();
+            var labelBatches = new List<NDArray>();
 
-            for (int i = 0; i < images.Count; i++)
+            // Process the dataset in chunks
+            for (int i = 0; i < images.Count; i += batchSize)
             {
-                var image = images[i];
-                var annotation = annotations[i];
+                // Determine the actual batch size for the last mini-batch if it has fewer than batchSize items
+                int currentBatchSize = Math.Min(batchSize, images.Count - i);
 
-                (NDArray img, float[] scaledBbox) = PreprocessImage(image.file_name,annotation.bbox,targetWidth,targetHeight);
+                // Initialize NDArray placeholders for the current mini-batch
+                var batchImageArray = np.zeros(new Shape(currentBatchSize, targetWidth, targetHeight, 3), np.float32);
+                var batchBboxArray = np.zeros(new Shape(currentBatchSize, 4), np.float32); // Adjust as needed for bounding boxes
+                var batchLabelArray = np.zeros(new Shape(currentBatchSize, numClasses), np.float32);
 
-                imageArray[i] = img;
-                bboxArray[i] = scaledBbox;
-                labelArray[i] = OneHotEncode(annotation.category_id,numClasses);
+                Parallel.For(0, currentBatchSize, j =>
+                {
+                    // Get the image and corresponding annotation
+                    var image = images[i + j];
+                    var annotation = annotations[i + j];
+
+                    // Preprocess the image and bounding box
+                    (NDArray processedImage, float[] scaledBbox) = PreprocessImage(
+                        ImagesPath,
+                        image.file_name,
+                        annotation.bbox,
+                        targetWidth,
+                        targetHeight
+                    );
+
+                    // Assign to mini-batch arrays
+                    lock (batchImageArray)
+                    {
+                        batchImageArray[j] = processedImage;
+                    }
+
+                    lock (batchBboxArray)
+                    {
+                        batchBboxArray[j] = scaledBbox;
+                    }
+
+                    lock (batchLabelArray)
+                    {
+                        batchLabelArray[j] = OneHotEncode(annotation.category_id, numClasses);
+                    }
+                });
+
+                // Add mini-batch to the list of batches
+                imageBatches.Add(batchImageArray);
+                bboxBatches.Add(batchBboxArray);
+                labelBatches.Add(batchLabelArray);
             }
 
-            return (imageArray, bboxArray, labelArray);
+            // Return lists of mini-batches
+            return (imageBatches, bboxBatches, labelBatches);
         }
     }
 }
