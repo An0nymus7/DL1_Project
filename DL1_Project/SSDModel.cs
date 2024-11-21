@@ -7,6 +7,7 @@ using Tensorflow.Keras.Losses;
 using Tensorflow.NumPy;
 using Tensorflow.Operations.Initializers;
 using static Tensorflow.Binding;
+using static Tensorflow.KerasApi;
 
 namespace DL1_Project
 {
@@ -15,6 +16,7 @@ namespace DL1_Project
         //use GPU if available
         public static void UseGPU()
         {
+            
             var gpus = tf.config.list_physical_devices("GPU");
             if (gpus.Length > 0)
             {
@@ -22,17 +24,22 @@ namespace DL1_Project
                 {
                     //set memory growth on GPU
                     foreach (var gpu in gpus)
+                    {
                         tf.config.experimental.set_memory_growth(gpu, true);
-                    Debug.WriteLine("\nGPU is available and memory is set!!!\n");
+                        Debug.WriteLine("\nGPU is available and memory is set!!!\n");
+                        Console.WriteLine("\nGPU is available and memory is set!!!\n");
+                    }
                 }
                 catch (Exception e)
                 {
                     Debug.WriteLine($"\nFailed to initialize GPU usage: {e.Message}\n");
+                    Console.WriteLine($"\nFailed to initialize GPU usage: {e.Message}\n");
                 }
             }
             else
             {
                 Debug.WriteLine("\nGPU is not available. Using CPU!!!!!\n");
+                Console.WriteLine("\nGPU is not available. Using CPU!!!!!\n");
             }
 
         }
@@ -41,51 +48,107 @@ namespace DL1_Project
         public static Functional BuildSSDModel(int inputHeight, int inputWidth, int numClasses)
         {
             UseGPU();
-            var inputs = KerasApi.keras.Input(shape: (inputHeight, inputWidth, 3));
+            var inputs = keras.Input(shape: (inputHeight, inputWidth, 3));
 
             //modell definition
-            var x = KerasApi.keras.layers.Conv2D(32, (3, 3), activation: "relu", padding: "same").Apply(inputs);
-            x = KerasApi.keras.layers.MaxPooling2D((2, 2)).Apply(x);
-            x = KerasApi.keras.layers.Conv2D(64, (3, 3), activation: "relu", padding: "same").Apply(x);
-            x = KerasApi.keras.layers.MaxPooling2D((2, 2)).Apply(x);
+            var x = keras.layers.Conv2D(32, (3, 3), activation: "relu", padding: "same").Apply(inputs);
+            x = keras.layers.MaxPooling2D((2, 2)).Apply(x);
+            x = keras.layers.Conv2D(64, (3, 3), activation: "relu", padding: "same").Apply(x);
+            x = keras.layers.MaxPooling2D((2, 2)).Apply(x);
 
             //ssd layer
-            var boundingBoxes = KerasApi.keras.layers.Conv2D(4, (3, 3), activation: "linear").Apply(x);
-            var ClassScores = KerasApi.keras.layers.Conv2D(numClasses, (3, 3), activation: "softmax").Apply(x);
-
-            return (Functional)KerasApi.keras.Model(inputs, new Tensors(boundingBoxes, ClassScores));
+            var boundingBoxes = keras.layers.Conv2D(4, (3, 3), activation: "linear").Apply(x);
+            var ClassScores = keras.layers.Conv2D(numClasses, (3, 3), activation: "softmax").Apply(x);
+            Debug.WriteLine("\n Modell Built \n");
+            return (Functional)keras.Model(inputs, new Tensors(boundingBoxes, ClassScores));
         }
 
         //Train the modell
-        public static void TrainModel(Functional model, NDArray trainImages, NDArray trainBboxes, NDArray trainLabels)
+        public static void TrainModel(Functional model, List<NDArray> trainImageBatches, List<NDArray> trainBboxBatches, List<NDArray> trainLabelBatches, int epochs)
         {
-            var CustomLoss = new CustomSSDLoss();
+            var customLoss = new CustomSSDLoss();
 
-            //compile modell with GPU support
+            // Compile model with GPU support
             model.compile(
-            optimizer: KerasApi.keras.optimizers.Adam(),
-            loss: CustomLoss);
-            //work around because it needs only one Iloss thingy so we define a custom loss function to calculate both
+                optimizer: keras.optimizers.Adam(),
+                loss: customLoss
+            );
 
-            //train
-            model.fit(trainImages, (NDArray)new Tensors(trainBboxes, trainLabels), epochs: 10, batch_size: 32);
+            Debug.WriteLine("\n STARTING TRAINING \n");
+            Console.WriteLine("\n STARTING TRAINING \n");
+
+            // Iterate over epochs
+            for (int epoch = 1; epoch <= epochs; epoch++)
+            {
+                Debug.WriteLine($"\n Epoch {epoch}/{epochs} \n");
+                Console.WriteLine($"\n Epoch {epoch}/{epochs} \n");
+
+                // Loop through each mini-batch
+                for (int batch = 0; batch < trainImageBatches.Count; batch++)
+                {
+                    var batchImages = trainImageBatches[batch];
+                    var batchBboxes = trainBboxBatches[batch];
+                    var batchLabels = trainLabelBatches[batch];
+
+                    // Fit model on the current batch
+                    model.fit(batchImages, (NDArray)new Tensors(batchBboxes, batchLabels), batch_size: (int)batchImages.shape[0]);
+
+                    Debug.WriteLine($"Batch {batch + 1}/{trainImageBatches.Count} completed.");
+                    Console.WriteLine($"Batch {batch + 1}/{trainImageBatches.Count} completed.");
+                }
+            }
 
             Debug.WriteLine("\n TRAIN COMPLETED \n");
             Console.WriteLine("\n TRAIN COMPLETED \n");
 
-            //save the model
-            Directory.CreateDirectory("../../../../../Data");
-            model.save("../../../../../Data");
-            Debug.WriteLine("\n SAVE COMPLETED \n");
-            Console.WriteLine("\n SAVE COMPLETED \n");
-
+            // Save the model after training
+            SaveModel(model, "../../../../../Data/Model/ssd_model");
+            Debug.WriteLine("\n MODEL SAVED \n");
+            Console.WriteLine("\n MODEL SAVED \n");
         }
 
-        public static void EvaluateModel(Functional model, NDArray valImages, NDArray valBboxes, NDArray valLabels)
+        private static void SaveModel(Functional model, string savePath)
         {
-            var evaluation = model.evaluate(valImages, new Tensors(valBboxes, valLabels));
-            Debug.WriteLine($"\nEvaluation Loss: {evaluation}\n");
-            Console.WriteLine($"\nEvaluation Loss: {evaluation}\n");
+            Directory.CreateDirectory(savePath);
+            model.save(savePath);
+
+            Debug.WriteLine("\n SAVE COMPLETED \n");
+            Console.WriteLine($"Model saved at {savePath}\n SAVE COMPLETED \n");
+        }
+
+        public static void EvaluateModel(Functional model, List<NDArray> valImageBatches, List<NDArray> valBboxBatches, List<NDArray> valLabelBatches)
+        {
+            float totalLoss = 0;
+            int totalBatches = valImageBatches.Count;
+
+            Debug.WriteLine("\nSTARTING EVALUATION\n");
+            Console.WriteLine("\nSTARTING EVALUATION\n");
+
+            // Iterate over each mini-batch
+            for (int batch = 0; batch < totalBatches; batch++)
+            {
+                var batchImages = valImageBatches[batch];
+                var batchBboxes = valBboxBatches[batch];
+                var batchLabels = valLabelBatches[batch];
+
+                // Evaluate model on the current batch
+                var evaluation = model.evaluate(batchImages, new Tensors(batchBboxes, batchLabels));
+
+                // Assuming the loss is stored under the key "loss" in the dictionary
+                if (evaluation.ContainsKey("loss"))
+                {
+                    totalLoss += (float)evaluation["loss"];
+                }
+
+                Debug.WriteLine($"Batch {batch + 1}/{totalBatches} evaluated.");
+                Console.WriteLine($"Batch {batch + 1}/{totalBatches} evaluated.");
+            }
+
+            // Calculate the average loss over all batches
+            float averageLoss = totalLoss / totalBatches;
+
+            Debug.WriteLine($"\nEvaluation Complete. Average Loss: {averageLoss}\n");
+            Console.WriteLine($"\nEvaluation Complete. Average Loss: {averageLoss}\n");
         }
 
         public static void Predict(Functional model, NDArray image)
