@@ -35,13 +35,13 @@ namespace DL1_Project
         // Load the training data by processing each image and annotation
         public (List<NDArray> , List<NDArray> , List<NDArray> ) PrepareTrainingData()
         {
-            return PreprocessBatch(trainImagesPath,trainImages, annotations, targetWidth, targetHeight, numClasses,32);
+            return PreprocessBatch(trainImagesPath,trainImages, annotations, targetWidth, targetHeight, numClasses,64,true); //maybe add bigger batch size
         }
 
         // Load the validation data by processing each image and annotation
         public (List<NDArray>, List<NDArray> , List<NDArray> ) PrepareValidationData()
         {
-            return PreprocessBatch(valImagesPath,valImages, annotations, targetWidth, targetHeight, numClasses,32);
+            return PreprocessBatch(valImagesPath,valImages, annotations, targetWidth, targetHeight, numClasses,64,false); //maybe add bigger batch size 
         }
     }
 }

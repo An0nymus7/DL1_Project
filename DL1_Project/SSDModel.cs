@@ -1,5 +1,6 @@
 ﻿using ICSharpCode.SharpZipLib.Zip;
 using System.Diagnostics;
+using System.IO;
 using Tensorflow;
 using Tensorflow.Keras;
 using Tensorflow.Keras.Engine;
@@ -57,10 +58,12 @@ namespace DL1_Project
             x = keras.layers.MaxPooling2D((2, 2)).Apply(x);
 
             //ssd layer
-            var boundingBoxes = keras.layers.Conv2D(4, (3, 3), activation: "linear").Apply(x);
-            var ClassScores = keras.layers.Conv2D(numClasses, (3, 3), activation: "softmax").Apply(x);
+            //var boundingBoxes = keras.layers.Conv2D(4, (3, 3), activation: "linear").Apply(x);
+            var ClassScores = keras.layers.Conv2D(numClasses, (1, 1), activation: "softmax").Apply(x);
+
+
             Debug.WriteLine("\n Modell Built \n");
-            return (Functional)keras.Model(inputs, new Tensors(boundingBoxes, ClassScores));
+            return (Functional)keras.Model(inputs,  ClassScores);
         }
 
         //Train the modell
@@ -71,7 +74,8 @@ namespace DL1_Project
             // Compile model with GPU support
             model.compile(
                 optimizer: keras.optimizers.Adam(),
-                loss: customLoss
+                loss: keras.losses.CategoricalCrossentropy(),
+                metrics: new[] { "accuracy" }
             );
 
             Debug.WriteLine("\n STARTING TRAINING \n");
@@ -87,11 +91,30 @@ namespace DL1_Project
                 for (int batch = 0; batch < trainImageBatches.Count; batch++)
                 {
                     var batchImages = trainImageBatches[batch];
-                    var batchBboxes = trainBboxBatches[batch];
+                    var batchBboxes = tf.convert_to_tensor(trainBboxBatches[batch]);
                     var batchLabels = trainLabelBatches[batch];
 
+                    #region asd
+                    //var combinedLabels = np.concatenate(new NDArray[] { batchBboxes, batchLabels }, axis: 1);
+
+                    //Console.WriteLine($"CombinedLabels shape: {combinedLabels.shape}");
+                    //Console.WriteLine($"BatchImages shape: {batchImages.shape}");
+
+                    //combinedLabels = (NDArray)tf.convert_to_tensor(combinedLabels); 
+                    #endregion
+
+                    batchImages = (NDArray)tf.cast(batchImages, tf.float32);
+                    batchLabels = (NDArray)tf.cast(batchLabels, tf.float32);
+
+
+                    Console.WriteLine($"BatchImages shape: {batchImages.shape}");
+                    Console.WriteLine($"BatchLabels shape: {batchLabels.shape}");
+                    Console.WriteLine($"Model input shape: {model.inputs.shape}");
+                    //Console.WriteLine($"Model output shape: {model.OutputShape.GetShape()}");
+
+
                     // Fit model on the current batch
-                    model.fit(batchImages, (NDArray)new Tensors(batchBboxes, batchLabels), batch_size: (int)batchImages.shape[0]);
+                    model.fit(batchImages, batchLabels, batch_size: (int)batchImages.shape[0]);
 
                     Debug.WriteLine($"Batch {batch + 1}/{trainImageBatches.Count} completed.");
                     Console.WriteLine($"Batch {batch + 1}/{trainImageBatches.Count} completed.");
@@ -132,7 +155,7 @@ namespace DL1_Project
                 var batchLabels = valLabelBatches[batch];
 
                 // Evaluate model on the current batch
-                var evaluation = model.evaluate(batchImages, new Tensors(batchBboxes, batchLabels));
+                var evaluation = model.evaluate(batchImages, (NDArray)new Tensors(batchBboxes, batchLabels));
 
                 // Assuming the loss is stored under the key "loss" in the dictionary
                 if (evaluation.ContainsKey("loss"))
