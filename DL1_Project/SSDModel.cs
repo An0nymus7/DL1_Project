@@ -91,8 +91,12 @@ namespace DL1_Project
                 for (int batch = 0; batch < trainImageBatches.Count; batch++)
                 {
                     var batchImages = trainImageBatches[batch];
-                    var batchBboxes = tf.convert_to_tensor(trainBboxBatches[batch]);
+                    //var batchBboxes = tf.convert_to_tensor(trainBboxBatches[batch]);
                     var batchLabels = trainLabelBatches[batch];
+
+
+                    // Reshape labels to align with model output
+                    //batchLabels = np.zeros(new Shape(batchLabels[0], 75, 75, batchLabels[1]));
 
                     #region asd
                     //var combinedLabels = np.concatenate(new NDArray[] { batchBboxes, batchLabels }, axis: 1);
@@ -102,10 +106,6 @@ namespace DL1_Project
 
                     //combinedLabels = (NDArray)tf.convert_to_tensor(combinedLabels); 
                     #endregion
-
-                    batchImages = (NDArray)tf.cast(batchImages, tf.float32);
-                    batchLabels = (NDArray)tf.cast(batchLabels, tf.float32);
-
 
                     Console.WriteLine($"BatchImages shape: {batchImages.shape}");
                     Console.WriteLine($"BatchLabels shape: {batchLabels.shape}");

@@ -110,7 +110,7 @@ namespace DL1_Project
                     // Initialize NDArray placeholders for the current mini-batch
                     var batchImageArray = np.zeros(new Shape(currentBatchSize, targetWidth, targetHeight, 3), tf.float32);
                     var batchBboxArray = np.zeros(new Shape(currentBatchSize, 4), tf.float32);
-                    var batchLabelArray = np.zeros(new Shape(currentBatchSize, numClasses), tf.float32);
+                    var batchLabelArray = np.zeros(new Shape(currentBatchSize, 75,75,numClasses), tf.float32);
 
                     
                     // Process mini-batch sequentially
