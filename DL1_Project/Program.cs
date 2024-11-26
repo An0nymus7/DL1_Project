@@ -24,9 +24,15 @@ namespace DL1_Project
 
             var dataloader = new DataLoader(traing_Image_path, val_Image_path, train_annotations.images, val_annotations.images, train_annotations.annotations, 300, 300, train_annotations.categories.Max(x => x.id));
 
+           
+            var (model,exists) = ModelBuilder.LoadModel($"../../../../../Data/Model",300,300, train_annotations.categories.Max(x => x.id));
+            if(!exists)
+                RunTraining(dataloader,model);
+            else if(false)
+                RunValidation(dataloader, model);
 
-            RunTraining(dataloader, 300, 300, train_annotations.categories.Max(x => x.id));
-
+            var (image, asd) = ImagePreprocessor.PreprocessImage("../../../../../Data/", "cat.jpg",new List<float> { 0f,0f,0f,0f},300,300);
+            ModelBuilder.Predict(model,image);
             Console.WriteLine($"Loaded {train_annotations.images.Count} images and {train_annotations.annotations.Count} annotations.");
             Console.WriteLine($"Loaded {val_annotations.images.Count} images and {val_annotations.annotations.Count} annotations.");
         }
@@ -34,25 +40,23 @@ namespace DL1_Project
         private static void RunValidation(DataLoader dataloader, Functional model)
         {
             //Prepare validation data
-            var (valImages, valBboxes, valLabels) = dataloader.PrepareValidationData();
+            var (valImages, valBboxes, valLabels,NumberOfBatch) = dataloader.PrepareValidationData();
 
             //Evaluate the model
             Console.WriteLine("Evaluating the model...");
-            SSDModel.EvaluateModel(model, valImages, valBboxes, valLabels);
+            ModelBuilder.EvaluateModel(model, valImages, valBboxes, valLabels);
 
         }
 
-        public static void RunTraining(DataLoader dataLoader, int inputHeight, int inputWidth, int numClasses)
+        public static void RunTraining(DataLoader dataLoader,Functional model)
         {
-            //Build the SSD model
-            var model = SSDModel.BuildSSDModel(inputHeight, inputWidth, numClasses);
-
+           
             //Prepare training
-            var (trainImages, trainBboxes, trainLabels) = dataLoader.PrepareTrainingData();
+            var (trainImages, trainBboxes, trainLabels,NumberOfBatch) = dataLoader.PrepareTrainingData();
 
             //Train the model
             Console.WriteLine("Starting training...");
-            SSDModel.TrainModel(model, trainImages, trainBboxes, trainLabels,10);
+            ModelBuilder.TrainModel(model, trainImages, trainBboxes, trainLabels,10,NumberOfBatch);
 
             //validate
             RunValidation(dataLoader, model);

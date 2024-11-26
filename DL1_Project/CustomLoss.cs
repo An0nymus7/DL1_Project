@@ -8,12 +8,12 @@ using Tensorflow.Keras.Losses;
 
 namespace DL1_Project
 {
-    class CustomSSDLoss : ILossFunc
+    class CustomLoss : ILossFunc
     {
         private readonly ILossFunc bboxLoss;
         private readonly ILossFunc classScoreLoss;
 
-        public CustomSSDLoss()
+        public CustomLoss()
         {
             bboxLoss = KerasApi.keras.losses.MeanSquaredError();
             classScoreLoss = KerasApi.keras.losses.SparseCategoricalCrossentropy();

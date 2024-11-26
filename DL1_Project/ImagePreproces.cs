@@ -50,12 +50,12 @@ namespace DL1_Project
         public static NDArray OneHotEncode(int categoryId, int numClasses)
         {
             NDArray oneHot = np.zeros(numClasses, np.float32);
-            oneHot[categoryId-1] = 1.0f;
+            oneHot[categoryId - 1] = 1.0f;
             return oneHot;
         }
 
-        //PreprocessBatch: Preprocesses a batch of images and annotations, returning an array of images, bounding boxes, and labels ready for training.
-        public static (List<NDArray>, List<NDArray>, List<NDArray>) PreprocessBatch(string ImagesPath, List<CocoAnnotation.Image> images, List<CocoAnnotation.Annotation> annotations, int targetWidth, int targetHeight, int numClasses, int batchSize, bool knownSize)
+        //PreprocessBatch: Preprocesses a batch of images and annotations
+        public static int PreprocessBatch(string ImagesPath, List<CocoAnnotation.Image> images, List<CocoAnnotation.Annotation> annotations, int targetWidth, int targetHeight, int numClasses, int batchSize, bool knownSize)
         {
             int actual_image_count = images.Count();
             string directory = "../../../../../Data/ValidationBatch";
@@ -65,21 +65,15 @@ namespace DL1_Project
                 directory = "../../../../../Data/TrainBatch";
             }
 
-
-                SSDModel.UseGPU();
+            ModelBuilder.UseGPU();
             // Create directory for saving progress
             if (!Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // Initialize lists to store mini-batches
-            var imageBatches = new List<NDArray>();
-            var bboxBatches = new List<NDArray>();
-            var labelBatches = new List<NDArray>();
-
             // Process the dataset in chunks ||set a hard cap because it would go to the original size of 118287 and the file that contains the images is only 64000
-            for (int i = 0; i < 1600; i += batchSize)
+            for (int i = 0; i < actual_image_count; i += batchSize)
             {
                 // Determine the batch ID and save paths
                 int batchId = i / batchSize;
@@ -87,41 +81,30 @@ namespace DL1_Project
                 string batchBboxPath = Path.Combine(directory, $"batch_{batchId}_bboxes.npy");
                 string batchLabelPath = Path.Combine(directory, $"batch_{batchId}_labels.npy");
 
-                if (File.Exists(batchImagePath) && File.Exists(batchBboxPath) && File.Exists(batchLabelPath))
+                if ((File.Exists(batchImagePath) && File.Exists(batchBboxPath) && File.Exists(batchLabelPath)))
                 {
-                    // Load preprocessed batch from disk
-                    var batchImages = np.load(batchImagePath);
-                    var batchBboxes = np.load(batchBboxPath);
-                    var batchLabels = np.load(batchLabelPath);
-
-                    imageBatches.Add(batchImages);
-                    bboxBatches.Add(batchBboxes);
-                    labelBatches.Add(batchLabels);
-
-                    Console.WriteLine($"Loaded batch {batchId} from disk.");
+                    //Console.WriteLine("already exist continue");
+                    continue;
                 }
-                else
+                // Determine the actual batch size for the last mini-batch if it has fewer than batchSize items
+                int currentBatchSize = Math.Min(batchSize, images.Count - i);
+                //Console.WriteLine($"Batch Size: {currentBatchSize}, Target Width: {targetWidth}, Target Height: {targetHeight}");
+                //Console.WriteLine($"Total Elements: {currentBatchSize * targetWidth * targetHeight * 3}");
+
+                // Initialize NDArray placeholders for the current mini-batch
+                var batchImageArray = np.zeros(new Shape(currentBatchSize, targetWidth, targetHeight, 3), tf.float32);
+                var batchBboxArray = np.zeros(new Shape(currentBatchSize, 4), tf.float32);
+                var batchLabelArray = np.zeros(new Shape(currentBatchSize, 75, 75, numClasses), tf.float32);
+
+                // Process mini-batch sequentially
+                for (int j = 0; j < currentBatchSize; j++)
                 {
-                    // Determine the actual batch size for the last mini-batch if it has fewer than batchSize items
-                    int currentBatchSize = Math.Min(batchSize, images.Count - i);
-                    //Console.WriteLine($"Batch Size: {currentBatchSize}, Target Width: {targetWidth}, Target Height: {targetHeight}");
-                    //Console.WriteLine($"Total Elements: {currentBatchSize * targetWidth * targetHeight * 3}");
+                    var image = images[i + j];
+                    var annotation = annotations[i + j];
 
-                    // Initialize NDArray placeholders for the current mini-batch
-                    var batchImageArray = np.zeros(new Shape(currentBatchSize, targetWidth, targetHeight, 3), tf.float32);
-                    var batchBboxArray = np.zeros(new Shape(currentBatchSize, 4), tf.float32);
-                    var batchLabelArray = np.zeros(new Shape(currentBatchSize, 75,75,numClasses), tf.float32);
-
-                    
-                    // Process mini-batch sequentially
-                    for (int j = 0; j < currentBatchSize; j++)
+                    // Preprocess the image and bounding box
+                    if (File.Exists(Path.Combine(ImagesPath, image.file_name)))
                     {
-                        var image = images[i + j];
-                        var annotation = annotations[i + j];
-
-                        // Preprocess the image and bounding box
-                        if (File.Exists(Path.Combine(ImagesPath, image.file_name)))
-                        {
 
                         (NDArray processedImage, float[] scaledBbox) = PreprocessImage(
                             ImagesPath,
@@ -134,27 +117,18 @@ namespace DL1_Project
                         batchImageArray[j] = processedImage;
                         batchBboxArray[j] = scaledBbox;
                         batchLabelArray[j] = OneHotEncode(annotation.category_id, numClasses);
-                        }
-                        else
-                            continue;
                     }
-
-                    // Save processed batch to disk
-                    np.save(batchImagePath, batchImageArray);
-                    np.save(batchBboxPath, batchBboxArray);
-                    np.save(batchLabelPath, batchLabelArray);
-
-                    Console.WriteLine($"Saved batch {batchId} to disk.");
-
-                    // Add mini-batch to the list of batches
-                    imageBatches.Add(batchImageArray);
-                    bboxBatches.Add(batchBboxArray);
-                    labelBatches.Add(batchLabelArray);
                 }
-            }
 
-            // Return lists of mini-batches
-            return (imageBatches, bboxBatches, labelBatches);
+                // Save processed batch to disk
+                np.save(batchImagePath, batchImageArray);
+                np.save(batchBboxPath, batchBboxArray);
+                np.save(batchLabelPath, batchLabelArray);
+
+                Console.WriteLine($"Saved batch {batchId} to disk.");
+            }
+            return (int)(actual_image_count/batchSize);
         }
+
     }
 }
